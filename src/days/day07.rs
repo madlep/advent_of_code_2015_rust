@@ -28,9 +28,7 @@ impl WireConnections {
         let mut connections = HashMap::new();
 
         for ins in instructions.iter() {
-            let inserted =
-                connections.insert(ins.output().to_owned(), Connection::new(ins.clone()));
-            assert!(inserted.is_none());
+            connections.insert(ins.1.clone(), Connection::new(ins.0.clone()));
         }
 
         Self { connections }
@@ -44,7 +42,7 @@ impl WireConnections {
         self.connections.insert(
             wire_label.to_string(),
             Connection {
-                value: RefCell::new(ConnectionValue::Resolved(value)),
+                value: RefCell::new(ConnectionState::Resolved(value)),
             },
         );
     }
@@ -52,18 +50,15 @@ impl WireConnections {
 
 #[derive(Debug)]
 struct Connection {
-    value: RefCell<ConnectionValue>,
-}
-
-impl Clone for Connection {
-    fn clone(&self) -> Self {
-        Self {
-            value: RefCell::new(self.value.borrow().clone()),
-        }
-    }
+    value: RefCell<ConnectionState>,
 }
 
 impl Connection {
+    fn new(gate: Gate) -> Self {
+        let value = RefCell::new(ConnectionState::Unresolved(gate));
+        Self { value }
+    }
+
     fn value(&self, wire_connections: &WireConnections) -> u16 {
         if !self.value.borrow().is_resolved() {
             self.value.replace_with(|v| v.resolve(wire_connections));
@@ -73,21 +68,13 @@ impl Connection {
     }
 }
 
-impl Connection {
-    fn new(instruction: Instruction) -> Self {
-        Self {
-            value: RefCell::new(ConnectionValue::Unresolved(instruction)),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-enum ConnectionValue {
-    Unresolved(Instruction),
+#[derive(Debug)]
+enum ConnectionState {
+    Unresolved(Gate),
     Resolved(u16),
 }
 
-impl ConnectionValue {
+impl ConnectionState {
     fn is_resolved(&self) -> bool {
         match self {
             Self::Resolved(_) => true,
@@ -110,36 +97,28 @@ impl ConnectionValue {
     }
 }
 
+#[derive(Debug)]
+pub struct Instruction(Gate, WireLabel);
+
 #[derive(Debug, Clone)]
-pub enum Instruction {
-    And(Input, Input, WireLabel),
-    Or(Input, Input, WireLabel),
-    LShift(Input, Input, WireLabel),
-    RShift(Input, Input, WireLabel),
-    Not(Input, WireLabel),
-    Direct(Input, WireLabel),
+pub enum Gate {
+    And(Input, Input),
+    Or(Input, Input),
+    LShift(Input, Input),
+    RShift(Input, Input),
+    Not(Input),
+    Direct(Input),
 }
 
-impl Instruction {
-    fn output(&self) -> &WireLabel {
-        match self {
-            Instruction::And(_, _, o) => o,
-            Instruction::Or(_, _, o) => o,
-            Instruction::LShift(_, _, o) => o,
-            Instruction::RShift(_, _, o) => o,
-            Instruction::Not(_, o) => o,
-            Instruction::Direct(_, o) => o,
-        }
-    }
-
+impl Gate {
     fn value(&self, wire_connections: &WireConnections) -> u16 {
         match self {
-            Self::And(i1, i2, _) => i1.value(wire_connections) & i2.value(wire_connections),
-            Self::Or(i1, i2, _) => i1.value(wire_connections) | i2.value(wire_connections),
-            Self::LShift(i1, i2, _) => i1.value(wire_connections) << i2.value(wire_connections),
-            Self::RShift(i1, i2, _) => i1.value(wire_connections) >> i2.value(wire_connections),
-            Self::Not(i, _) => !i.value(wire_connections),
-            Self::Direct(i, _) => i.value(wire_connections),
+            Self::And(i1, i2) => i1.value(wire_connections) & i2.value(wire_connections),
+            Self::Or(i1, i2) => i1.value(wire_connections) | i2.value(wire_connections),
+            Self::LShift(i1, i2) => i1.value(wire_connections) << i2.value(wire_connections),
+            Self::RShift(i1, i2) => i1.value(wire_connections) >> i2.value(wire_connections),
+            Self::Not(i) => !i.value(wire_connections),
+            Self::Direct(i) => i.value(wire_connections),
         }
     }
 }
@@ -193,42 +172,50 @@ mod parser {
     fn and(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" AND "), input);
         let p = separated_pair(gate, tag(" -> "), io);
-        let mut p = map(p, |((i1, i2), o)| Instruction::And(i1, i2, o.to_owned()));
+        let mut p = map(p, |((i1, i2), o)| {
+            Instruction(Gate::And(i1, i2), o.to_string())
+        });
         p(s)
     }
 
     fn or(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" OR "), input);
         let p = separated_pair(gate, tag(" -> "), io);
-        let mut p = map(p, |((i1, i2), o)| Instruction::Or(i1, i2, o.to_owned()));
+        let mut p = map(p, |((i1, i2), o)| {
+            Instruction(Gate::Or(i1, i2), o.to_string())
+        });
         p(s)
     }
 
     fn lshift(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" LSHIFT "), input);
         let p = separated_pair(gate, tag(" -> "), io);
-        let mut p = map(p, |((i1, i2), o)| Instruction::LShift(i1, i2, o.to_owned()));
+        let mut p = map(p, |((i1, i2), o)| {
+            Instruction(Gate::LShift(i1, i2), o.to_string())
+        });
         p(s)
     }
 
     fn rshift(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" RSHIFT "), input);
         let p = separated_pair(gate, tag(" -> "), io);
-        let mut p = map(p, |((i1, i2), o)| Instruction::RShift(i1, i2, o.to_owned()));
+        let mut p = map(p, |((i1, i2), o)| {
+            Instruction(Gate::RShift(i1, i2), o.to_string())
+        });
         p(s)
     }
 
     fn not(s: &str) -> IResult<&str, Instruction> {
         let gate = preceded(tag("NOT "), input);
         let p = separated_pair(gate, tag(" -> "), io);
-        let mut p = map(p, |(i, o)| Instruction::Not(i, o.to_owned()));
+        let mut p = map(p, |(i, o)| Instruction(Gate::Not(i), o.to_string()));
         p(s)
     }
 
     fn direct(s: &str) -> IResult<&str, Instruction> {
         let gate = input;
         let p = separated_pair(gate, tag(" -> "), io);
-        let mut p = map(p, |(i, o)| Instruction::Direct(i, o.to_owned()));
+        let mut p = map(p, |(i, o)| Instruction(Gate::Direct(i), o.to_string()));
         p(s)
     }
 
