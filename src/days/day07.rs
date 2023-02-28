@@ -39,14 +39,12 @@ impl WireConnections {
     }
 
     fn override_value(&mut self, wire_label: &str, value: u16) -> () {
-        self.connections.insert(
-            wire_label.to_string(),
-            Connection {
-                value: RefCell::new(ConnectionState::Resolved(value)),
-            },
-        );
+        self.connections
+            .insert(wire_label.to_string(), Connection::new_with_value(value));
     }
 }
+
+type WireLabel = String;
 
 #[derive(Debug)]
 struct Connection {
@@ -56,6 +54,11 @@ struct Connection {
 impl Connection {
     fn new(gate: Gate) -> Self {
         let value = RefCell::new(ConnectionState::Unresolved(gate));
+        Self { value }
+    }
+
+    fn new_with_value(value: u16) -> Self {
+        let value = RefCell::new(ConnectionState::Resolved(value));
         Self { value }
     }
 
@@ -91,8 +94,8 @@ impl ConnectionState {
 
     fn resolve(&self, wire_connections: &WireConnections) -> Self {
         match self {
-            Self::Resolved(_) => panic!("already resolved"),
             Self::Unresolved(i) => Self::Resolved(i.value(wire_connections)),
+            Self::Resolved(_) => panic!("already resolved"),
         }
     }
 }
@@ -125,20 +128,18 @@ impl Gate {
 
 #[derive(Debug, Clone)]
 pub enum Input {
-    Resolved(u16),
     Unresolved(WireLabel),
+    Resolved(u16),
 }
 
 impl<'a> Input {
     fn value(&self, wire_connections: &WireConnections) -> u16 {
         match self {
-            Self::Resolved(v) => *v,
             Self::Unresolved(wl) => wire_connections.value(wl),
+            Self::Resolved(v) => *v,
         }
     }
 }
-
-type WireLabel = String;
 
 mod parser {
 
