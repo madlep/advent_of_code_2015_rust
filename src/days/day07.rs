@@ -169,7 +169,7 @@ mod parser {
 
     fn and(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" AND "), input);
-        let p = separated_pair(gate, tag(" -> "), io);
+        let p = separated_pair(gate, tag(" -> "), wire);
         let mut p = map(p, |((i1, i2), o)| {
             Instruction(Gate::And(i1, i2), o.to_string())
         });
@@ -178,7 +178,7 @@ mod parser {
 
     fn or(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" OR "), input);
-        let p = separated_pair(gate, tag(" -> "), io);
+        let p = separated_pair(gate, tag(" -> "), wire);
         let mut p = map(p, |((i1, i2), o)| {
             Instruction(Gate::Or(i1, i2), o.to_string())
         });
@@ -187,7 +187,7 @@ mod parser {
 
     fn lshift(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" LSHIFT "), input);
-        let p = separated_pair(gate, tag(" -> "), io);
+        let p = separated_pair(gate, tag(" -> "), wire);
         let mut p = map(p, |((i1, i2), o)| {
             Instruction(Gate::LShift(i1, i2), o.to_string())
         });
@@ -196,7 +196,7 @@ mod parser {
 
     fn rshift(s: &str) -> IResult<&str, Instruction> {
         let gate = separated_pair(input, tag(" RSHIFT "), input);
-        let p = separated_pair(gate, tag(" -> "), io);
+        let p = separated_pair(gate, tag(" -> "), wire);
         let mut p = map(p, |((i1, i2), o)| {
             Instruction(Gate::RShift(i1, i2), o.to_string())
         });
@@ -205,14 +205,14 @@ mod parser {
 
     fn not(s: &str) -> IResult<&str, Instruction> {
         let gate = preceded(tag("NOT "), input);
-        let p = separated_pair(gate, tag(" -> "), io);
+        let p = separated_pair(gate, tag(" -> "), wire);
         let mut p = map(p, |(i, o)| Instruction(Gate::Not(i), o.to_string()));
         p(s)
     }
 
     fn direct(s: &str) -> IResult<&str, Instruction> {
         let gate = input;
-        let p = separated_pair(gate, tag(" -> "), io);
+        let p = separated_pair(gate, tag(" -> "), wire);
         let mut p = map(p, |(i, o)| Instruction(Gate::Direct(i), o.to_string()));
         p(s)
     }
@@ -222,7 +222,7 @@ mod parser {
     }
 
     fn unresolved(s: &str) -> IResult<&str, Input> {
-        let mut p = map(io, |wire_label: &str| {
+        let mut p = map(wire, |wire_label: &str| {
             Input::Unresolved(wire_label.to_owned())
         });
         p(s)
@@ -233,7 +233,7 @@ mod parser {
         p(s)
     }
 
-    fn io(s: &str) -> IResult<&str, &str> {
+    fn wire(s: &str) -> IResult<&str, &str> {
         let mut p = verify(alpha1, |wire: &str| wire.chars().all(|c| c.is_lowercase()));
         p(s)
     }
