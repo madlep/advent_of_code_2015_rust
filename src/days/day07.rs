@@ -4,18 +4,18 @@ use std::collections::HashMap;
 pub fn part1(data: &str) -> String {
     let instructions = parser::parse(data);
     let wire_connections = WireConnections::new(&instructions);
-    let a = wire_connections.value(&"a".to_string());
+    let a = wire_connections.value("a");
     a.to_string()
 }
 
 pub fn part2(data: &str) -> String {
     let instructions = parser::parse(data);
     let wire_connections = WireConnections::new(&instructions);
-    let a = wire_connections.value(&"a".to_string());
+    let a = wire_connections.value("a");
 
     let mut wire_connections_2 = WireConnections::new(&instructions);
-    wire_connections_2.override_value(&"b".to_string(), a);
-    let a2 = wire_connections_2.value(&"a".to_string());
+    wire_connections_2.override_value("b", a);
+    let a2 = wire_connections_2.value("a");
     a2.to_string()
 }
 
@@ -36,11 +36,11 @@ impl WireConnections {
         Self { connections }
     }
 
-    fn value(&self, wire_label: &WireLabel) -> u16 {
+    fn value(&self, wire_label: &str) -> u16 {
         self.connections.get(wire_label).unwrap().value(self)
     }
 
-    fn override_value(&mut self, wire_label: &WireLabel, value: u16) -> () {
+    fn override_value(&mut self, wire_label: &str, value: u16) -> () {
         self.connections.insert(
             wire_label.to_string(),
             Connection {
